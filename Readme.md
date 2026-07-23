@@ -132,5 +132,6 @@ TESPİT EDİLEN KİMLİK BİLGİLERİ (1):
 
 ## Lisans / Sorumluluk Reddi
 
-Bu proje eğitim amaçlıdır, hiçbir garanti verilmez. Kullanımından doğacak
-her türlü sorumluluk kullanıcıya aittir.
+Bu proje [MIT License](LICENSE) ile lisanslanmıştır. Yine de eğitim amaçlıdır;
+hiçbir garanti verilmez ve kullanımından doğacak her türlü sorumluluk kullanıcıya
+aittir.
