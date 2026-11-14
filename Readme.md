@@ -1,137 +1,135 @@
-# Gelişmiş Paket Dinleyici (Packet Sniffer)
+# EasyWireShark
 
-Eğitim amaçlı, `Scapy` tabanlı bir ağ trafiği analiz aracı. HTTP, DNS, FTP ve
-Telnet trafiğini yakalar, düz metin kimlik bilgilerini tespit eder ve
-yakalanan paketleri `.pcap` dosyasına kaydeder.
+Scapy tabanlı, terminal üzerinden çalışan eğitim amaçlı bir ağ paketi dinleyicisi. Program, seçilen ağ arayüzünde filtreye uyan IPv4 paketlerini yakalar; DNS, HTTP, FTP ve Telnet trafiğinin bazı alanlarını ayrıştırır, özet sayaçları tutar ve isteğe bağlı olarak yakalanan paketleri Wireshark'ta açılabilen `.pcap` dosyasına yazar.
 
-> ⚠️ **Yasal Uyarı**
-> Bu araç sadece **kendi ağınızda**, **kendi trafiğinizde** veya üzerinde
-> **açıkça izniniz olan** sistemlerde (örn. kendi lab/test ortamınız)
-> kullanılmalıdır. Başkasına ait ağ trafiğini izinsiz dinlemek/kaydetmek
-> Türkiye'de TCK 243–244 ve KVKK kapsamında suç teşkil edebilir. Bu proje
-> yalnızca ağ protokollerini ve güvenlik kavramlarını öğrenmek amacıyla
-> hazırlanmıştır.
+> **Yasal ve etik kullanım:** Bu aracı yalnızca kendi cihazınızda/ağınızda veya açıkça izin verilmiş laboratuvar ortamında kullanın. Ağ trafiği kişisel ve hassas veriler içerebilir. Başkalarının trafiğini izinsiz yakalamayın, kaydetmeyin veya paylaşmayın. Bu depo eğitim amacı taşır; kullanım sorumluluğu kullanıcıya aittir.
 
-## Bu Proje Ne Öğretir?
+## Neler yapar?
 
-- **Paket anatomisi**: Header (başlık) ve payload (veri yükü) ayrımı
-- **OSI katmanları**: IP (Katman 3), TCP/UDP (Katman 4), HTTP/DNS/FTP (Katman 7)
-- **Şifresiz protokollerin riski**: HTTP, FTP, Telnet düz metin gönderir;
-  HTTPS/SSH ise şifreler — bu farkı canlı örneklerle görürsünüz
-- **Base64 ≠ şifreleme**: HTTP Basic Auth örneğiyle Base64'ün sadece bir
-  kodlama yöntemi olduğunu, güvenlik sağlamadığını gösterir
-- **BPF filtreleri**: `tcp port 80` gibi filtre ifadeleriyle trafiği
-  hedeflemeyi öğretir
+- BPF filtresiyle seçilen trafiği Scapy üzerinden yakalar.
+- DNS sorgularında istenen alan adını, cevap kayıtlarında görülebilen IP adreslerini gösterir.
+- HTTP istek metodunu, host bilgisini ve yolu; HTTP yanıt durum kodunu gösterir.
+- HTTP Basic Auth ve form gövdesinde kimlik bilgisi olabilecek metinleri işaretler. Bu sezgisel bir aramadır, doğrulama değildir.
+- FTP ve Telnet trafiğinde görülen ham metni ve `USER`/`PASS` benzeri satırları gösterir.
+- Paket ve protokol sayaçlarıyla, görülen alan adlarıyla ve olası eşleşmelerle kapanış özeti üretir.
+- `-o` seçeneğiyle yakalanan paketleri `.pcap` dosyasına kaydeder.
+
+## Bu proje ne öğretir?
+
+- Paketlerin IP, TCP/UDP ve uygulama katmanı alanlarının nasıl incelendiğini.
+- DNS sorgusu/yanıtı ile HTTP istek/yanıtı arasındaki farkı.
+- HTTP, FTP ve Telnet gibi şifresiz protokollerde içeriğin neden görülebildiğini.
+- Base64'ün şifreleme olmadığını ve tek başına gizlilik sağlamadığını.
+- BPF filtreleriyle paket yakalamanın nasıl daraltıldığını.
 
 ## Gereksinimler
 
-- Python 3.8+
-- Root / Administrator yetkisi (ham soket erişimi için zorunludur)
-- Linux, macOS veya Windows (Npcap kurulu olmalı — aşağıya bakın)
+- Python 3.8 veya üzeri
+- Scapy (`requirements.txt` içinde)
+- Paket yakalama erişimi: Linux/macOS'ta çoğunlukla yönetici/root yetkisi; Windows'ta Npcap
+
+Windows'ta [Npcap](https://npcap.com/#download) kurun. Kurulum sırasında WinPcap API uyumluluk seçeneği gerekebilir. Yönetici yetkisiyle çalıştırın.
 
 ## Kurulum
 
 ```bash
-# Sanal ortam oluşturmanız önerilir
-python3 -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
-
-pip install -r requirements.txt
+git clone <REPOSITORY_URL>
+cd WireSharkEasy
+python -m venv .venv
 ```
 
-### Windows için ek adım
+Linux/macOS:
 
-Scapy, Windows'ta paket yakalamak için [Npcap](https://npcap.com/#download)
-gerektirir. Kurulum sırasında **"WinPcap API-compatible Mode"** seçeneğini
-işaretleyin.
+```bash
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+sudo .venv/bin/python EasyWireShark.py
+```
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python EasyWireShark.py -i "Wi-Fi"
+```
+
+Windows'ta terminali yönetici olarak açın. Arayüz adını sisteminizdeki gerçek ada göre değiştirin. Linux'ta arayüzleri `ip link`, macOS'ta `ifconfig`, Windows'ta `ipconfig` ile inceleyebilirsiniz.
 
 ## Kullanım
 
-En basit haliyle çalıştırma:
+```text
+python EasyWireShark.py [-h] [-i INTERFACE] [-f FILTER] [-o OUTPUT] [-v] [-c COUNT]
+```
+
+| Seçenek | Açıklama | Varsayılan |
+|---|---|---|
+| `-i`, `--interface` | Dinlenecek ağ arayüzü | Scapy otomatik seçer |
+| `-f`, `--filter` | BPF yakalama filtresi | `tcp port 80 or tcp port 21 or tcp port 23 or udp port 53` |
+| `-o`, `--output` | Yakalanan paketleri kaydedecek `.pcap` yolu | Kayıt kapalı |
+| `-v`, `--verbose` | Tanınan kategorilerin dışında kalan TCP paketlerini de gösterir | Kapalı |
+| `-c`, `--count` | Belirtilen sayıda filtreye uyan paket sonrası durur; `0` sınırsızdır | `0` |
+
+Örnekler:
 
 ```bash
-sudo python3 EasyWireShark.py
+# HTTP, FTP, Telnet ve DNS için varsayılan filtreyle başlat
+sudo python EasyWireShark.py -i eth0
+
+# Yalnızca HTTP trafiğini göster
+sudo python EasyWireShark.py -f "tcp port 80" -v
+
+# 100 paketten sonra bitir ve yakalamayı kaydet
+sudo python EasyWireShark.py -c 100 -o lab-kaydi.pcap
 ```
 
-### Komut satırı seçenekleri
+Dinlemeyi Ctrl+C ile durdurabilirsiniz. Program özet üretir ve kayıt seçeneği verilmişse PCAP dosyasını yazar. Yakalama kapsamını dar tutun; `.pcap` dosyaları hassas içerik taşıyabilir.
 
-| Parametre         | Açıklama                                                        | Varsayılan                                    |
-|--------------------|-------------------------------------------------------------------|------------------------------------------------|
-| `-i`, `--interface` | Dinlenecek ağ arayüzü (örn. `eth0`, `wlan0`, `Wi-Fi`) | Otomatik seçim |
-| `-f`, `--filter` | BPF filtre ifadesi | `tcp port 80 or tcp port 21 or tcp port 23 or udp port 53` |
-| `-o`, `--output` | Yakalanan paketleri kaydedeceğiniz `.pcap` dosyası | Kapalı (kaydetmez) |
-| `-v`, `--verbose` | Kategorize edilmemiş TCP paketlerini de göster | Kapalı |
-| `-c`, `--count` | Belirli sayıda paket sonrası otomatik dur (`0` = sınırsız) | `0` |
+## Kodun akışı
 
-### Örnekler
+1. `main()` komut satırı seçeneklerini okur ve Scapy `sniff()` yakalamasını başlatır.
+2. Her yakalanan paket `paket_isle()` callback fonksiyonuna gelir. IP katmanı olmayan paketler bu sürümde atlanır.
+3. Callback, paketi DNS, HTTP istek/yanıtı veya FTP/Telnet işleyicisine yönlendirir. `-v`, diğer TCP paketleri için özet başlık bilgisi ekler.
+4. `DinleyiciDurumu` sayaçları, görülen domainleri, olası kimlik bilgisi eşleşmelerini ve kayıt açıksa paketleri bellekte tutar.
+5. Ctrl+C veya `--count` ile yakalama bitince özet basılır ve istenmişse paketler `wrpcap()` ile dosyaya yazılır.
 
-```bash
-# Belirli bir arayüzü dinle ve trafiği kaydet
-sudo python3 EasyWireShark.py -i eth0 -o kayit.pcap
+`Renk` sınıfı terminal ANSI renk kodlarını içerir; protokollerin anlamını değiştirmez, çıktıyı renklendirir. Proje tek ana Python dosyasından oluşur; README dışında başka çalışma zamanı modülü yoktur.
 
-# Sadece HTTP trafiğini, ayrıntılı modda dinle
-sudo python3 EasyWireShark.py -f "tcp port 80" -v
+## Sınırlamalar ve dikkat edilmesi gerekenler
 
-# 100 paket yakalayınca otomatik dur
-sudo python3 EasyWireShark.py -c 100
+- HTTPS/TLS içeriği çözülmez. Şifreli oturumların içindeki HTTP yolu, gövdesi veya kimlik bilgileri bu araçla okunamaz.
+- Varsayılan filtre yalnızca belirtilen portları kapsar. Örneğin HTTPS (443) varsayılan filtreye dahil değildir.
+- DNS-over-HTTPS/DNS-over-TLS gibi şifreli DNS yöntemleri normal DNS sorgusu olarak görünmeyebilir.
+- Bu sürüm yalnızca IPv4 `IP` katmanı olan paketleri işler; ARP ve IPv6 ayrıştırılmaz.
+- HTTP/FTP/Telnet analizleri protokol ayrıştırma ve ham payload üzerinde yapılan basit kontrollerdir. TCP segmentleri uygulama mesajlarıyla birebir örtüşmeyebilir; bu nedenle kayıtlar eksik veya yanlış pozitif olabilir.
+- `--count`, BPF filtresine uyan yakalanan paketleri sayar; protokol sayaçları ise yalnızca kodun tanıdığı mesaj/olaylar için artar. Bunlar aynı sayı değildir.
+- `-o` seçeneği yakalanan paketleri bellekte biriktirir; uzun yakalamalarda bellek kullanımı artabilir.
+- Paket yakalama platforma, ağ kartına, sürücüye ve yetkilere bağlıdır. Her cihazda aynı sonuç garanti edilmez.
+
+## İleri seviye geliştirme fikirleri
+
+Bu maddeler mevcut özellik değildir; ileride projeye eklenebilecek fikirlerdir:
+
+1. **Modüler mimari:** Yakalama, protokol ayrıştırıcıları, raporlama ve CLI kodlarını ayrı Python modüllerine bölmek; işleyiciler için ortak arayüz tanımlamak.
+2. **IPv6 ve ARP desteği:** IPv6 katmanlarını ayrıştırmak; ARP istek/yanıtlarını ayrı sayaçlarla göstermek. ARP işlenirken IP katmanı zorunlu varsayımını kaldırmak gerekir.
+3. **PCAPNG ve akış takibi:** PCAPNG desteği, TCP akışlarını yeniden birleştirme ve parçalara bölünmüş HTTP mesajlarını doğru analiz etme.
+4. **Daha güvenli veri işleme:** Kimlik bilgisi içeriğini varsayılan olarak göstermemek; maskeleme, izinli test modu ve hassas PCAP dosyaları için açık uyarı seçenekleri eklemek.
+5. **Konfigürasyon ve filtre profilleri:** Hazır protokol profilleri, filtre doğrulaması ve yapılandırma dosyası desteği.
+6. **Canlı istatistik arayüzü:** Paket hızı, protokol dağılımı ve en çok görülen uç noktalar için terminal paneli veya yerel web arayüzü.
+7. **Dışa aktarma ve depolama:** JSON/CSV raporu veya SQLite depolama; saklama süresi ve veri minimizasyonu ayarları.
+8. **Tespit kuralları:** Şüpheli tarama ve olağandışı bağlantı örüntüleri için ayarlanabilir kurallar, önem derecesi ve açıklanabilir uyarılar.
+9. **Test ve kalite:** Örnek/anonim PCAP dosyalarıyla birim testleri, statik analiz, biçimlendirme ve otomatik CI iş akışı.
+10. **Kullanılabilirlik:** Arayüz listesini uygulama içinden gösterme, renk desteklenmeyen terminalleri algılama ve daha anlaşılır hata mesajları.
+
+## Proje dosyaları
+
+```text
+EasyWireShark.py   # Paket yakalama ve analiz uygulaması
+Readme.md          # Kurulum, kullanım, sınırlar ve geliştirme fikirleri
+requirements.txt   # Python bağımlılıkları
+LICENSE            # MIT lisansı
 ```
 
-Ağ arayüzü adınızı öğrenmek için:
+## Lisans
 
-```bash
-ip a          # Linux
-ifconfig      # macOS
-ipconfig      # Windows
-```
-
-## Örnek Çıktı
-
-```
-[14:32:07] [DNS SORGU] 192.168.1.34 -> 'example.com'
-    -> çözümlenen IP: 93.184.216.34
-[14:32:09] [HTTP GET] 192.168.1.34 -> http://example.com/login
-    [!] Form verisinde olası kimlik bilgisi: ['ali123']
-
-============================================================
-DİNLEME ÖZETİ
-============================================================
-Süre                 : 42.3 saniye
-Toplam paket         : 156
-Protokol dağılımı    : {'DNS': 34, 'HTTP': 12}
-Ziyaret edilen site  : 8 farklı domain
-
-TESPİT EDİLEN KİMLİK BİLGİLERİ (1):
-  [14:32:09] HTTP-Form: ['ali123']
-============================================================
-```
-
-## Proje Yapısı
-
-```
-.
-├── EasyWireShark.py        # Ana script
-├── requirements.txt        # Python bağımlılıkları
-└── README.md                # Bu dosya
-```
-
-## Sınırlamalar
-
-- **HTTPS trafiği okunamaz** — TLS ile şifrelendiği için içerik görünmez;
-  sadece hangi IP/porta bağlanıldığı görülebilir.
-- Modern web siteleri çoğunlukla DNS-over-HTTPS (DoH) kullanabildiği için
-  DNS sorguları da her zaman düz metin görünmeyebilir.
-- Anahtar kelime/regex tabanlı kimlik bilgisi tespiti kesin değildir; yanlış
-  pozitif veya negatif sonuçlar verebilir.
-
-## Olası Geliştirmeler
-
-- Canlı istatistik paneli için `threading`
-- ARP spoofing / MITM tespiti
-- Yakalanan verileri SQLite veritabanına kaydetme
-- GeoIP ile IP'lerin coğrafi konumunu gösterme
-
-## Lisans / Sorumluluk Reddi
-
-Bu proje [MIT License](LICENSE) ile lisanslanmıştır. Yine de eğitim amaçlıdır;
-hiçbir garanti verilmez ve kullanımından doğacak her türlü sorumluluk kullanıcıya
-aittir.
+Bu proje MIT lisansı altındadır. Ayrıntılar için [LICENSE](LICENSE) dosyasına bakın.

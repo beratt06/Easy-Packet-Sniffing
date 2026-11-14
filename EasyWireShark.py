@@ -17,9 +17,9 @@ Kurulum:
     pip install scapy
 
 Çalıştırma örnekleri:
-    sudo python3 gelismis_dinleyici.py
-    sudo python3 gelismis_dinleyici.py -i eth0 -o kayit.pcap
-    sudo python3 gelismis_dinleyici.py --filter "tcp port 80" -v
+    python EasyWireShark.py
+    python EasyWireShark.py -i "Wi-Fi" -o kayit.pcap
+    python EasyWireShark.py --filter "tcp port 80" -v
 """
 
 import argparse
@@ -278,8 +278,11 @@ def cikis_isleyici(sig, frame, pcap_dosyasi):
     ozet_rapor_yazdir()
     if pcap_dosyasi and durum.yakalanan_paketler:
         print(f"\n{len(durum.yakalanan_paketler)} paket '{pcap_dosyasi}' dosyasına kaydediliyor...")
-        wrpcap(pcap_dosyasi, durum.yakalanan_paketler)
-        print(f"{Renk.YESIL}Kayıt tamamlandı: {pcap_dosyasi}{Renk.SIFIRLA}")
+        try:
+            wrpcap(pcap_dosyasi, durum.yakalanan_paketler)
+            print(f"{Renk.YESIL}Kayıt tamamlandı: {pcap_dosyasi}{Renk.SIFIRLA}")
+        except OSError as hata:
+            print(f"{Renk.KIRMIZI}PCAP dosyası yazılamadı: {hata}{Renk.SIFIRLA}", file=sys.stderr)
     sys.exit(0)
 
 
@@ -302,6 +305,9 @@ def main():
     parser.add_argument("-c", "--count", type=int, default=0,
                          help="Belirli sayıda paket yakaladıktan sonra otomatik dur (0 = sınırsız).")
     args = parser.parse_args()
+
+    if args.count < 0:
+        parser.error("--count değeri 0 veya pozitif olmalıdır.")
 
     # CTRL+C'yi yakalayıp temiz kapanış + özet rapor için ayarlıyoruz.
     signal.signal(signal.SIGINT, lambda s, f: cikis_isleyici(s, f, args.output))
